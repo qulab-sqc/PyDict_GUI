@@ -1,0 +1,48 @@
+{
+  "emp1": {
+    "EmpName": "Chris Jackman",
+    "EmpAge": 34,
+    "EmpGender": "Male",
+    "EmpDept": "IT",
+	"vz": 1.222,
+    "EmpDesg": "Project Manager",
+    "sub1": {
+      "sub2": {
+		"piamp": 0.2,
+        "sub3": {
+          "myList": [
+            1.2,
+            1.3,
+            1.5
+          ],
+          "EmpDept": "IT",
+          "EmpDesg": "Project Manager",
+		  "vz": 1.2
+        }
+      }
+    }
+  },
+  "emp2": {
+    "EmpName": "Mary Jane",
+    "EmpAge": 27,
+    "EmpGender": "Female",
+    "EmpDept": "IT",
+	"vz": 1.2,
+    "EmpDesg": "Team Leader",
+    "sub1": {
+      "sub2": {
+		"piamp": 0.2,
+        "sub3": {
+          "myList": [
+            2.2,
+            1.3,
+            1.5
+          ],
+		  "vz": 1.2,
+          "EmpDept": "Phy",
+          "piamp": 0.2
+        }
+      }
+    }
+  }
+}
