@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Iterable, Tuple, Any
+from typing import Iterable, Tuple, Any, Set
 from functools import wraps
 import os
 
@@ -12,6 +12,9 @@ from . import utils
 
 
 def keyval_to_str(key, val):
+    """string representation of key and value
+    for print or gui show
+    """
     return f"{key} = {val}"
 
 
@@ -55,10 +58,21 @@ class App:
         self.max_depth = dict_depth(self.obj)
 
         # max showed rows of searched result
-        self.rows_search = 10
-        self.output = widgets.Output()
+        self.max_rows_search = 10
 
-        # Tab 1: search
+        self.create_widgets_search()
+        self.create_widgets_change()
+
+    def create_widgets_search(self):
+        """Create the widgets for Search tab
+
+        * text_search: input texts to search
+        * select_search_result: show or select search result
+        * slider_depth: a slider to change search depth
+        * button_search, button_search, button_remove:
+            buttons for search, filter, unfilter
+        """
+        self.output = widgets.Output()
 
         self.text_search = widgets.Text(
             value='*',
@@ -67,21 +81,12 @@ class App:
             disabled=False
         )
 
-        self.select_paths = widgets.SelectMultiple(
-            options=tuple(),
-            rows=self.rows_search,
-            description=r'Path:',
-            disabled=False,
-            layout=Layout(width='200%')
-        )
-
-        # just show path and value in the same box
-        self.select_paths_vals = widgets.SelectMultiple(
-            options=tuple(),
-            rows=self.rows_search,
+        self.widget_search_result = widgets.SelectMultiple(
+            options=dict(),
+            rows=self.max_rows_search,
             description=r'Searched:',
             disabled=False,
-            layout=Layout(width='auto')
+            layout=Layout(width='200%')
         )
 
         self.slider_depth = widgets.SelectionSlider(
@@ -92,10 +97,6 @@ class App:
             readout=True
         )
 
-        self.box_search = widgets.Box(
-            children=[self.select_paths],
-            layout=Layout(flex_flow='row', width='90%'))
-
         self.button_search = widgets.Button(
             description='search',
             disabled=False,
@@ -105,7 +106,7 @@ class App:
             icon='check'
         )
 
-        self.button_filter_sel = widgets.Button(
+        self.button_extract = widgets.Button(
             description='extract',
             disabled=False,
             button_style='info',
@@ -113,7 +114,7 @@ class App:
             icon='filter'
         )
 
-        self.button_unfilter_sel = widgets.Button(
+        self.button_remove = widgets.Button(
             description='remove',
             disabled=False,
             button_style='info',
@@ -124,19 +125,27 @@ class App:
         self.box_buttons_search = widgets.Box(
             children=[
                 self.button_search,
-                self.button_filter_sel,
-                self.button_unfilter_sel,
+                self.button_extract,
+                self.button_remove,
             ],
             layout=Layout(flex_flow='row', width='100%'))
 
         self.tab_search = widgets.VBox([
             self.text_search,
             self.slider_depth,
-            self.select_paths,
+            self.widget_search_result,
             self.box_buttons_search,
         ])
 
-        # Tab 2: change
+    def create_widgets_change(self):
+        """Create the widgets for Change tab
+
+        * togButton_value_type, text_setValue: 
+            input value type and value to change the selected
+            dicts
+        * button_change, button_save:
+            buttons of change, save for dict
+        """
         self.button_change = widgets.Button(
             description='change',
             button_style='warning',
@@ -172,20 +181,21 @@ class App:
         )
 
         self.tab_change = widgets.VBox([
-            self.select_paths_vals,
+            self.widget_search_result,
+            # created from self.create_widgets_search
             self.togButton_value_type,
             self.text_setValue,
             self.box_buttons_change
         ])
 
-    def update_tab2_selectbox(self, paths: Iterable[str]):
-        """update select box contents in tab 2 (change)
+    def _update_search_results(self, paths: Iterable[str]):
+        """update search results contents
         """
-        # maintain order
-        self.select_paths_vals.options = tuple(
-            keyval_to_str(path, dget(self.obj, path))
-            for path in dict.fromkeys(paths)
-        )
+        self.widget_search_result.options = {
+            keyval_to_str(path, dget(self.obj, path)):
+            path
+            for path in paths
+        }
 
     def wrap_output(self, func):
         """ wrapper function
@@ -198,8 +208,8 @@ class App:
                 func(*args, **kwargs)
         return wrapper
 
-    def set_search_click(self):
-        """set the tab for searching
+    def set_search_interact(self):
+        """set the interaction for searching
         """
         depth_option = [None]
         depth_option.extend(
@@ -209,50 +219,46 @@ class App:
 
         @self.wrap_output
         def search_paths(arg):
-            selects = self.select_paths
-
+            """search dict
+            """
             key = self.text_search.value
             depth = self.slider_depth.value
             _str = ''.join([
                 f"search {key} ",
                 f"in depth: {depth} "
             ])
-
             print(_str)
-            res = dsearch_nest(
+
+            res: dict = dsearch_nest(
                 self.obj, key=key,
                 depth=depth)
-            selects.options = res.keys()
-            self.update_tab2_selectbox(selects.options)
+            self._update_search_results(res.keys())
 
             print(f'find {len(res)} results')
 
         @self.wrap_output
-        def filter_sel(arg):
+        def extract_select(arg):
             """filter selected value
             """
-            selects = self.select_paths
-            selects.options = selects.label
-            print(f'filter {len(selects.options)} results')
-            self.update_tab2_selectbox(selects.options)
+            res = self.widget_search_result
+            select_paths = res.get_interact_value()
+            print(f'extract {len(select_paths)} results')
+            self._update_search_results(select_paths)
 
         @self.wrap_output
-        def unfilter_sel(arg):
-            """unfilter selected value
+        def remove_select(arg):
+            """remove selected value
             """
-            selects = self.select_paths
-            print(f'remove {len(selects.label)} results')
-            keys = selects.label
-            # maintain order
-            _dict = dict.fromkeys(selects.options)
-            for key in keys:
-                _dict.pop(key)
-            selects.options = tuple(_dict.keys())
-            self.update_tab2_selectbox(selects.options)
+            res = self.widget_search_result
+            select_paths: Set[str] = set(res.get_interact_value())
+            all_paths: Set[str] = set(res.options.values())
+            remain_paths = all_paths ^ select_paths
+            print(f'remove {len(select_paths)} results')
+            self._update_search_results(remain_paths)
 
         # bind button with click update func
-        self.button_filter_sel.on_click(filter_sel)
-        self.button_unfilter_sel.on_click(unfilter_sel)
+        self.button_extract.on_click(extract_select)
+        self.button_remove.on_click(remove_select)
         self.button_search.on_click(search_paths)
 
     def set_change_click(self):
@@ -262,15 +268,15 @@ class App:
 
         @self.wrap_output
         def change_dict_val(b):
-            selects = self.select_paths
-            paths = selects.options
-            print(f'change {len(paths)} values')
+            res = self.widget_search_result
+            changed_paths = res.options.values()
+            print(f'change {len(changed_paths)} values')
             vtype = self.togButton_value_type.value
             value = self.text_setValue.value
-            for path in paths:
+            for path in changed_paths:
                 set_dict_val(self.obj, path, value, vtype)
 
-            self.update_tab2_selectbox(selects.options)
+            self._update_search_results(res.options.values())
         button.on_click(change_dict_val)
 
     def set_save_click(self):
@@ -289,8 +295,10 @@ class App:
                 obj=self.obj, _save_path=self.save_path)
         button.on_click(save)
 
-    def set_all_tab(self):
-        self.set_search_click()
+    def set_all_interacts(self):
+        """set interacts of all tabs' widgets
+        """
+        self.set_search_interact()
         self.set_change_click()
         self.set_save_click()
         children = [self.tab_search, self.tab_change]
@@ -303,7 +311,9 @@ class App:
         self.tabs = tabs
 
     def run(self):
-        self.set_all_tab()
+        """run interacts and display wdigets
+        """
+        self.set_all_interacts()
 
         display(self.tabs)
         display(self.output)
